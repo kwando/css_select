@@ -2,7 +2,6 @@ import css_select/selector as css
 import gleam/option
 import gleam/result
 import gleam/set
-import gleam/string
 import nibble.{do, one_of, return, token}
 import nibble/lexer
 
@@ -56,7 +55,7 @@ fn id_parser() {
   use _ <- do(token(Hash))
   use id <- do(identifier_parser())
 
-  return(css.AttributeEqual("id", id))
+  return(css.Id(id))
 }
 
 fn element_parser() {
@@ -79,13 +78,7 @@ fn attr_selector_parser() {
 fn psuedo_parser() {
   use _ <- do(token(Colon))
   use name <- do(identifier_parser())
-
-  case name {
-    "checked" -> return(css.AttributeExists("checked"))
-    "disabled" -> return(css.AttributeExists("disabled"))
-    "selected" -> return(css.AttributeExists("selected"))
-    _ -> nibble.fail("unknown psuedo class" <> string.inspect(name))
-  }
+  return(css.Psuedo(name))
 }
 
 fn attr_parser() {

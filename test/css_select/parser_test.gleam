@@ -1,7 +1,7 @@
 import css_select/internal/parser
 import css_select/selector.{
   Any, AttributeEqual, AttributeExists, AttributePrefix, AttributeSuffix, Class,
-  ElementSelector, Tag,
+  ElementSelector, Id, Psuedo, Tag,
 }
 import gleam/list
 import gleeunit
@@ -16,21 +16,13 @@ pub fn parse_simple_selector_test() {
   parser.parse_simple_selector("div.foo.bar#myId")
   |> should.be_ok
   |> should.equal(
-    ElementSelector(Tag("div"), [
-      Class("foo"),
-      Class("bar"),
-      AttributeEqual("id", "myId"),
-    ]),
+    ElementSelector(Tag("div"), [Class("foo"), Class("bar"), Id("myId")]),
   )
 
   parser.parse_simple_selector(".foo.bar#myId")
   |> should.be_ok
   |> should.equal(
-    ElementSelector(Any, [
-      Class("foo"),
-      Class("bar"),
-      AttributeEqual("id", "myId"),
-    ]),
+    ElementSelector(Any, [Class("foo"), Class("bar"), Id("myId")]),
   )
 
   parser.parse_simple_selector(".foo-bar")
@@ -70,14 +62,15 @@ pub fn parse_attribute_suffix_test() {
 pub fn parse_attribute_psuedo_class_test() {
   parser.parse_simple_selector(":checked")
   |> should.be_ok
-  |> should.equal(ElementSelector(Any, [AttributeExists("checked")]))
+  |> should.equal(ElementSelector(Any, [Psuedo("checked")]))
 
   parser.parse_simple_selector(":disabled")
   |> should.be_ok
-  |> should.equal(ElementSelector(Any, [AttributeExists("disabled")]))
+  |> should.equal(ElementSelector(Any, [Psuedo("disabled")]))
 
   parser.parse_simple_selector(":hello")
-  |> should.be_error
+  |> should.be_ok
+  |> should.equal(ElementSelector(Any, [Psuedo("hello")]))
 }
 
 //------------------------- [ check lexer ] -------------------------
