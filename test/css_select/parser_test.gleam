@@ -4,13 +4,8 @@ import css_select/selector.{
   ElementSelector, Id, Psuedo, Tag,
 }
 import gleam/list
-import gleeunit
 import gleeunit/should
 import nibble/lexer
-
-pub fn main() {
-  gleeunit.main()
-}
 
 pub fn parse_simple_selector_test() {
   parser.parse_simple_selector("div.foo.bar#myId")
