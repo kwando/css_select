@@ -26,6 +26,5 @@ css_select.simple_match(element, selector)  // True
 ## Development
 
 ```sh
-gleam run   # Run the project
 gleam test  # Run the tests
 ```
