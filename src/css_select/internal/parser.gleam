@@ -31,7 +31,7 @@ pub fn lexer() {
     lexer.token("^=", Prefix),
     lexer.token("$=", Suffix),
     lexer.string("\"", Name),
-    lexer.identifier("^[\\w]", "[\\w-_]", set.new(), Name),
+    lexer.identifier("^[\\w]", "[\\w\\-_]", set.new(), Name),
   ])
 }
 
