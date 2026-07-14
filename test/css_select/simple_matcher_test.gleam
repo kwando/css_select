@@ -1,6 +1,5 @@
 import css_select
 import css_select/simple_matcher
-import gleam/io
 import gleeunit/should
 
 pub fn selector_test() {
@@ -114,12 +113,8 @@ fn css(input) {
 }
 
 fn check(description, element, selector, expected) {
-  io.println(">> " <> description <> " selector: " <> selector)
-
-  simple_matcher.match(element, css(selector))
-  |> should.equal(expected)
-
-  io.println(" ✅")
+  assert simple_matcher.match(element, css(selector)) == expected
+    as { ">> " <> description <> " selector: " <> selector }
 }
 
 fn div(attributes) {

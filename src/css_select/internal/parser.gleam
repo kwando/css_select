@@ -1,142 +1,167 @@
 import css_select/selector as css
-import gleam/option
-import gleam/result
-import gleam/set
-import nibble.{do, one_of, return, token}
-import nibble/lexer
+import gleam/list
+import gleam/string
 
-pub type T {
-  Hash
-  Dot
-  Star
-  Colon
-  EqualSign
-  Prefix
-  Suffix
-  LBracket
-  RBracket
-  Name(String)
-  StrT(String)
-}
-
-pub fn lexer() {
-  lexer.simple([
-    lexer.token("#", Hash),
-    lexer.token(".", Dot),
-    lexer.token("*", Star),
-    lexer.token(":", Colon),
-    lexer.token("[", LBracket),
-    lexer.token("]", RBracket),
-    lexer.token("=", EqualSign),
-    lexer.token("^=", Prefix),
-    lexer.token("$=", Suffix),
-    lexer.string("\"", Name),
-    lexer.identifier("^[\\w]", "[\\w\\-_]", set.new(), Name),
-  ])
-}
-
-fn identifier_parser() {
-  use tok <- nibble.take_map("identifier")
-
-  case tok {
-    Name(k) -> option.Some(k)
-    _ -> option.None
-  }
-}
-
-fn class_parser() {
-  use _ <- do(token(Dot))
-  use class <- do(identifier_parser())
-
-  return(css.Class(class))
-}
-
-fn id_parser() {
-  use _ <- do(token(Hash))
-  use id <- do(identifier_parser())
-
-  return(css.Id(id))
-}
-
-fn element_parser() {
-  one_of([tag_parser(), any_parser()])
-}
-
-fn any_parser() {
-  nibble.succeed(css.Any)
-}
-
-fn tag_parser() {
-  use tag <- do(identifier_parser())
-  return(css.Tag(tag))
-}
-
-fn attr_selector_parser() {
-  one_of([class_parser(), id_parser(), attr_parser(), psuedo_parser()])
-}
-
-fn psuedo_parser() {
-  use _ <- do(token(Colon))
-  use name <- do(identifier_parser())
-  return(css.Psuedo(name))
-}
-
-fn attr_parser() {
-  use _ <- do(token(LBracket))
-  use key <- do(identifier_parser())
-
-  let attribute_exists = {
-    use _ <- do(token(RBracket))
-    return(css.AttributeExists(key))
-  }
-
-  let attribute_equals = {
-    use _ <- do(token(EqualSign))
-    use value <- do(identifier_parser())
-    use _ <- do(token(RBracket))
-    return(css.AttributeEqual(key, value))
-  }
-
-  let attribute_prefix = {
-    use _ <- do(token(Prefix))
-    use value <- do(identifier_parser())
-    use _ <- do(token(RBracket))
-    return(css.AttributePrefix(key, value))
-  }
-
-  let attribute_suffix = {
-    use _ <- do(token(Suffix))
-    use value <- do(identifier_parser())
-    use _ <- do(token(RBracket))
-    return(css.AttributeSuffix(key, value))
-  }
-
-  one_of([
-    attribute_exists,
-    attribute_equals,
-    attribute_prefix,
-    attribute_suffix,
-  ])
-}
-
-fn parser() {
-  use tag_selector <- do(element_parser())
-  use attr_selectors <- do(nibble.many(attr_selector_parser()))
-  return(css.ElementSelector(tag_selector, attr_selectors))
-}
-
-pub type ParseError(a) {
-  LexerError(lexer.Error)
-  ParseError(List(nibble.DeadEnd(T, a)))
+pub type ParseError {
+  ParseError(String)
 }
 
 pub fn parse_simple_selector(
   input: String,
-) -> Result(css.Selector, ParseError(a)) {
-  input
-  |> lexer.run(lexer())
-  |> result.map_error(LexerError)
-  |> result.try(fn(tokens) {
-    nibble.run(tokens, parser()) |> result.map_error(ParseError)
-  })
+) -> Result(css.Selector, ParseError) {
+  let chars = string.to_graphemes(input)
+  let #(tag, rest) = parse_tag(chars)
+  let attrs = parse_attributes(rest)
+  Ok(css.ElementSelector(tag, attrs))
+}
+
+fn parse_tag(chars: List(String)) -> #(css.TagSelector, List(String)) {
+  case chars {
+    [] -> #(css.Any, [])
+    [".", ..] -> #(css.Any, chars)
+    ["#", ..] -> #(css.Any, chars)
+    ["[", ..] -> #(css.Any, chars)
+    [":", ..] -> #(css.Any, chars)
+    _ -> {
+      let #(name, rest) = take_while(chars, is_ident_char)
+      #(css.Tag(name), rest)
+    }
+  }
+}
+
+fn parse_attributes(chars: List(String)) -> List(css.AttributeSelector) {
+  case chars {
+    [] -> []
+    [".", ..rest] -> {
+      let #(name, remaining) = take_while(rest, is_ident_char)
+      [css.Class(name), ..parse_attributes(remaining)]
+    }
+    ["#", ..rest] -> {
+      let #(name, remaining) = take_while(rest, is_ident_char)
+      [css.Id(name), ..parse_attributes(remaining)]
+    }
+    [":", ..rest] -> {
+      let #(name, remaining) = take_while(rest, is_ident_char)
+      [css.Psuedo(name), ..parse_attributes(remaining)]
+    }
+    ["[", ..rest] -> {
+      let #(attr, remaining) = parse_bracket_attr(rest)
+      [attr, ..parse_attributes(remaining)]
+    }
+    _ -> []
+  }
+}
+
+fn parse_bracket_attr(
+  chars: List(String),
+) -> #(css.AttributeSelector, List(String)) {
+  let #(key, rest) = take_while(chars, is_ident_char)
+  case rest {
+    ["]", ..remaining] -> #(css.AttributeExists(key), remaining)
+    ["=", ..remaining] -> {
+      let #(value, after) = parse_attr_value(remaining)
+      case after {
+        ["]", ..remaining] -> #(css.AttributeEqual(key, value), remaining)
+        _ -> #(css.AttributeEqual(key, value), after)
+      }
+    }
+    ["^", "=", ..remaining] -> {
+      let #(value, after) = parse_attr_value(remaining)
+      case after {
+        ["]", ..remaining] -> #(css.AttributePrefix(key, value), remaining)
+        _ -> #(css.AttributePrefix(key, value), after)
+      }
+    }
+    ["$", "=", ..remaining] -> {
+      let #(value, after) = parse_attr_value(remaining)
+      case after {
+        ["]", ..remaining] -> #(css.AttributeSuffix(key, value), remaining)
+        _ -> #(css.AttributeSuffix(key, value), after)
+      }
+    }
+    ["*", "=", ..remaining] -> {
+      let #(value, after) = parse_attr_value(remaining)
+      case after {
+        ["]", ..remaining] -> #(css.AttributeIncludes(key, value), remaining)
+        _ -> #(css.AttributeIncludes(key, value), after)
+      }
+    }
+    _ -> #(css.AttributeExists(key), rest)
+  }
+}
+
+fn parse_attr_value(chars: List(String)) -> #(String, List(String)) {
+  case chars {
+    ["\"", ..rest] -> {
+      let #(parts, remaining) = take_until(rest, fn(c) { c == "\"" })
+      let value = string.concat(parts)
+      case remaining {
+        ["\"", ..after] -> #(value, after)
+        _ -> #(value, remaining)
+      }
+    }
+    _ -> {
+      let #(value, remaining) = take_while(chars, is_ident_char)
+      #(value, remaining)
+    }
+  }
+}
+
+fn take_while(
+  chars: List(String),
+  predicate: fn(String) -> Bool,
+) -> #(String, List(String)) {
+  let #(matched, rest) = take_while_loop(chars, predicate, [])
+  #(string.concat(list.reverse(matched)), rest)
+}
+
+fn take_while_loop(
+  chars: List(String),
+  predicate: fn(String) -> Bool,
+  acc: List(String),
+) -> #(List(String), List(String)) {
+  case chars {
+    [] -> #(acc, [])
+    [first, ..rest] -> {
+      case predicate(first) {
+        True -> take_while_loop(rest, predicate, [first, ..acc])
+        False -> #(acc, chars)
+      }
+    }
+  }
+}
+
+fn take_until(
+  chars: List(String),
+  predicate: fn(String) -> Bool,
+) -> #(List(String), List(String)) {
+  case chars {
+    [] -> #([], [])
+    [first, ..rest] -> {
+      case predicate(first) {
+        True -> #([], chars)
+        False -> {
+          let #(matched, remaining) = take_until(rest, predicate)
+          #([first, ..matched], remaining)
+        }
+      }
+    }
+  }
+}
+
+fn is_ident_char(char: String) -> Bool {
+  case char {
+    "." -> False
+    "#" -> False
+    "[" -> False
+    "]" -> False
+    ":" -> False
+    "=" -> False
+    "^" -> False
+    "$" -> False
+    "*" -> False
+    "\"" -> False
+    " " -> False
+    _ -> True
+  }
 }

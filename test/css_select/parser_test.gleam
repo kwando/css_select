@@ -1,11 +1,9 @@
 import css_select/internal/parser
 import css_select/selector.{
-  Any, AttributeEqual, AttributeExists, AttributePrefix, AttributeSuffix, Class,
-  ElementSelector, Id, Psuedo, Tag,
+  Any, AttributeEqual, AttributeExists, AttributeIncludes, AttributePrefix,
+  AttributeSuffix, Class, ElementSelector, Id, Psuedo, Tag,
 }
-import gleam/list
 import gleeunit/should
-import nibble/lexer
 
 pub fn parse_simple_selector_test() {
   parser.parse_simple_selector("div.foo.bar#myId")
@@ -54,6 +52,12 @@ pub fn parse_attribute_suffix_test() {
   |> should.equal(ElementSelector(Any, [AttributeSuffix("foo", "bar")]))
 }
 
+pub fn parse_attribute_includes_test() {
+  parser.parse_simple_selector("[foo*=bar]")
+  |> should.be_ok
+  |> should.equal(ElementSelector(Any, [AttributeIncludes("foo", "bar")]))
+}
+
 pub fn parse_attribute_psuedo_class_test() {
   parser.parse_simple_selector(":checked")
   |> should.be_ok
@@ -66,53 +70,4 @@ pub fn parse_attribute_psuedo_class_test() {
   parser.parse_simple_selector(":hello")
   |> should.be_ok
   |> should.equal(ElementSelector(Any, [Psuedo("hello")]))
-}
-
-//------------------------- [ check lexer ] -------------------------
-pub fn lexer_test() {
-  tokens("")
-  |> should.equal([])
-
-  tokens("div#foo")
-  |> should.equal([parser.Name("div"), parser.Hash, parser.Name("foo")])
-
-  tokens("div#foo[href]")
-  |> should.equal([
-    parser.Name("div"),
-    parser.Hash,
-    parser.Name("foo"),
-    parser.LBracket,
-    parser.Name("href"),
-    parser.RBracket,
-  ])
-
-  tokens("div#foo[bar=baz]")
-  |> should.equal([
-    parser.Name("div"),
-    parser.Hash,
-    parser.Name("foo"),
-    parser.LBracket,
-    parser.Name("bar"),
-    parser.EqualSign,
-    parser.Name("baz"),
-    parser.RBracket,
-  ])
-
-  tokens("[bar=\"baz\"]")
-  |> should.equal([
-    parser.LBracket,
-    parser.Name("bar"),
-    parser.EqualSign,
-    parser.Name("baz"),
-    parser.RBracket,
-  ])
-}
-
-fn tokens(input: String) -> List(parser.T) {
-  lexer.run(input, parser.lexer())
-  |> should.be_ok
-  |> list.map(fn(t) {
-    let lexer.Token(_, _, value) = t
-    value
-  })
 }
