@@ -1,5 +1,5 @@
 import css_select/internal/parser as handrolled_parser
-import css_select/internal/parser_splitter as splitter_parser
+import css_select/internal/parser_splitter as ps
 import css_select/selector
 import gleam/io
 import gleam/result
@@ -19,12 +19,14 @@ fn parse_handrolled(input: String) -> ParseResult {
   |> result.map_error(fn(_e) { "handrolled_error" })
 }
 
-fn parse_splitter(input: String) -> ParseResult {
-  splitter_parser.parse_simple_selector(input)
-  |> result.map_error(fn(_e) { "splitter_error" })
-}
-
 pub fn main() {
+  let splitter_parser = ps.new()
+
+  let parse_splitter = fn(input: String) -> ParseResult {
+    ps.parse_simple_selector(splitter_parser, input)
+    |> result.map_error(fn(_e) { "splitter_error" })
+  }
+
   let inputs = [
     bench.Input("simple tag", "div"),
     bench.Input("multiple classes", ".foo.bar.baz"),
