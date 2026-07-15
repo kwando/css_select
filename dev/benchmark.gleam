@@ -1,9 +1,9 @@
-import css_select/internal/parser as handrolled_parser
-import css_select/internal/parser_splitter as ps
+import css_select/internal/parser
 import css_select/selector
 import gleam/io
 import gleam/result
 import gleamy/bench
+import parser_graphemes
 import parser_nibble as nibble_parser
 
 type ParseResult =
@@ -15,15 +15,19 @@ fn parse_nibble(input: String) -> ParseResult {
 }
 
 fn parse_handrolled(input: String) -> ParseResult {
-  handrolled_parser.parse_simple_selector(input)
+  parser_graphemes.parse_simple_selector(input)
   |> result.map_error(fn(_e) { "handrolled_error" })
 }
 
 pub fn main() {
-  let splitter_parser = ps.new()
-
   let parse_splitter = fn(input: String) -> ParseResult {
-    ps.parse_simple_selector(splitter_parser, input)
+    parser.parse_simple_selector(input)
+    |> result.map_error(fn(_e) { "splitter_error" })
+  }
+
+  let ps = parser.new()
+  let parse_splitter_with_parser = fn(input: String) -> ParseResult {
+    parser.parse_simple_selector_with_parser(ps, input)
     |> result.map_error(fn(_e) { "splitter_error" })
   }
 
@@ -39,6 +43,7 @@ pub fn main() {
     bench.Function("nibble", parse_nibble),
     bench.Function("handrolled", parse_handrolled),
     bench.Function("splitter", parse_splitter),
+    bench.Function("splitter precreated", parse_splitter_with_parser),
   ]
 
   let options = [

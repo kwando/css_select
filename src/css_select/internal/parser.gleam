@@ -1,6 +1,27 @@
 import css_select/selector as css
-import gleam/list
-import gleam/string
+import splitter
+
+const token_delims = [".", "#", "[", ":"]
+
+const attr_delims = ["^=", "$=", "*=", "=", "]"]
+
+const quote_delims = ["\""]
+
+pub opaque type Parser {
+  Parser(
+    token_splitter: splitter.Splitter,
+    attr_splitter: splitter.Splitter,
+    quote_splitter: splitter.Splitter,
+  )
+}
+
+pub fn new() -> Parser {
+  Parser(
+    token_splitter: splitter.new(token_delims),
+    attr_splitter: splitter.new(attr_delims),
+    quote_splitter: splitter.new(quote_delims),
+  )
+}
 
 pub type ParseError {
   ParseError(String)
@@ -9,159 +30,89 @@ pub type ParseError {
 pub fn parse_simple_selector(
   input: String,
 ) -> Result(css.Selector, ParseError) {
-  let chars = string.to_graphemes(input)
-  let #(tag, rest) = parse_tag(chars)
-  let attrs = parse_attributes(rest)
+  parse_simple_selector_with_parser(new(), input)
+}
+
+pub fn parse_simple_selector_with_parser(
+  parser: Parser,
+  input: String,
+) -> Result(css.Selector, ParseError) {
+  let #(tag_part, rest) = splitter.split_before(parser.token_splitter, input)
+
+  let tag = case tag_part {
+    "" -> css.Any
+    _ -> css.Tag(tag_part)
+  }
+
+  let attrs = parse_attrs(rest, parser)
   Ok(css.ElementSelector(tag, attrs))
 }
 
-fn parse_tag(chars: List(String)) -> #(css.TagSelector, List(String)) {
-  case chars {
-    [] -> #(css.Any, [])
-    [".", ..] -> #(css.Any, chars)
-    ["#", ..] -> #(css.Any, chars)
-    ["[", ..] -> #(css.Any, chars)
-    [":", ..] -> #(css.Any, chars)
-    _ -> {
-      let #(name, rest) = take_while(chars, is_ident_char)
-      #(css.Tag(name), rest)
+fn parse_attrs(input: String, parser: Parser) -> List(css.AttributeSelector) {
+  case input {
+    "" -> []
+    "." <> rest -> {
+      let #(name, remaining) =
+        splitter.split_before(parser.token_splitter, rest)
+      [css.Class(name), ..parse_attrs(remaining, parser)]
     }
-  }
-}
-
-fn parse_attributes(chars: List(String)) -> List(css.AttributeSelector) {
-  case chars {
-    [] -> []
-    [".", ..rest] -> {
-      let #(name, remaining) = take_while(rest, is_ident_char)
-      [css.Class(name), ..parse_attributes(remaining)]
+    "#" <> rest -> {
+      let #(name, remaining) =
+        splitter.split_before(parser.token_splitter, rest)
+      [css.Id(name), ..parse_attrs(remaining, parser)]
     }
-    ["#", ..rest] -> {
-      let #(name, remaining) = take_while(rest, is_ident_char)
-      [css.Id(name), ..parse_attributes(remaining)]
+    ":" <> rest -> {
+      let #(name, remaining) =
+        splitter.split_before(parser.token_splitter, rest)
+      [css.Psuedo(name), ..parse_attrs(remaining, parser)]
     }
-    [":", ..rest] -> {
-      let #(name, remaining) = take_while(rest, is_ident_char)
-      [css.Psuedo(name), ..parse_attributes(remaining)]
-    }
-    ["[", ..rest] -> {
-      let #(attr, remaining) = parse_bracket_attr(rest)
-      [attr, ..parse_attributes(remaining)]
+    "[" <> rest -> {
+      let #(attr, remaining) = parse_bracket_attr(rest, parser)
+      [attr, ..parse_attrs(remaining, parser)]
     }
     _ -> []
   }
 }
 
 fn parse_bracket_attr(
-  chars: List(String),
-) -> #(css.AttributeSelector, List(String)) {
-  let #(key, rest) = take_while(chars, is_ident_char)
-  case rest {
-    ["]", ..remaining] -> #(css.AttributeExists(key), remaining)
-    ["=", ..remaining] -> {
-      let #(value, after) = parse_attr_value(remaining)
-      case after {
-        ["]", ..remaining] -> #(css.AttributeEqual(key, value), remaining)
-        _ -> #(css.AttributeEqual(key, value), after)
-      }
-    }
-    ["^", "=", ..remaining] -> {
-      let #(value, after) = parse_attr_value(remaining)
-      case after {
-        ["]", ..remaining] -> #(css.AttributePrefix(key, value), remaining)
-        _ -> #(css.AttributePrefix(key, value), after)
-      }
-    }
-    ["$", "=", ..remaining] -> {
-      let #(value, after) = parse_attr_value(remaining)
-      case after {
-        ["]", ..remaining] -> #(css.AttributeSuffix(key, value), remaining)
-        _ -> #(css.AttributeSuffix(key, value), after)
-      }
-    }
-    ["*", "=", ..remaining] -> {
-      let #(value, after) = parse_attr_value(remaining)
-      case after {
-        ["]", ..remaining] -> #(css.AttributeIncludes(key, value), remaining)
-        _ -> #(css.AttributeIncludes(key, value), after)
-      }
-    }
-    _ -> #(css.AttributeExists(key), rest)
+  input: String,
+  parser: Parser,
+) -> #(css.AttributeSelector, String) {
+  let #(key, op_and_rest) = splitter.split_before(parser.attr_splitter, input)
+
+  case op_and_rest {
+    "]" <> remaining -> #(css.AttributeExists(key), remaining)
+    "^=" <> rest -> parse_attr_with_op(css.AttributePrefix, key, rest, parser)
+    "$=" <> rest -> parse_attr_with_op(css.AttributeSuffix, key, rest, parser)
+    "*=" <> rest -> parse_attr_with_op(css.AttributeIncludes, key, rest, parser)
+    "=" <> rest -> parse_attr_with_op(css.AttributeEqual, key, rest, parser)
+    _ -> #(css.AttributeExists(key), op_and_rest)
   }
 }
 
-fn parse_attr_value(chars: List(String)) -> #(String, List(String)) {
-  case chars {
-    ["\"", ..rest] -> {
-      let #(parts, remaining) = take_until(rest, fn(c) { c == "\"" })
-      let value = string.concat(parts)
+fn parse_attr_with_op(
+  constructor: fn(String, String) -> css.AttributeSelector,
+  key: String,
+  input: String,
+  parser: Parser,
+) -> #(css.AttributeSelector, String) {
+  let #(value, after_value) = parse_attr_value(input, parser)
+
+  case after_value {
+    "]" <> remaining -> #(constructor(key, value), remaining)
+    _ -> #(constructor(key, value), after_value)
+  }
+}
+
+fn parse_attr_value(input: String, parser: Parser) -> #(String, String) {
+  case input {
+    "\"" <> rest -> {
+      let #(parts, _, remaining) = splitter.split(parser.quote_splitter, rest)
       case remaining {
-        ["\"", ..after] -> #(value, after)
-        _ -> #(value, remaining)
+        "\"" <> after -> #(parts, after)
+        _ -> #(parts, remaining)
       }
     }
-    _ -> {
-      let #(value, remaining) = take_while(chars, is_ident_char)
-      #(value, remaining)
-    }
-  }
-}
-
-fn take_while(
-  chars: List(String),
-  predicate: fn(String) -> Bool,
-) -> #(String, List(String)) {
-  let #(matched, rest) = take_while_loop(chars, predicate, [])
-  #(string.concat(list.reverse(matched)), rest)
-}
-
-fn take_while_loop(
-  chars: List(String),
-  predicate: fn(String) -> Bool,
-  acc: List(String),
-) -> #(List(String), List(String)) {
-  case chars {
-    [] -> #(acc, [])
-    [first, ..rest] -> {
-      case predicate(first) {
-        True -> take_while_loop(rest, predicate, [first, ..acc])
-        False -> #(acc, chars)
-      }
-    }
-  }
-}
-
-fn take_until(
-  chars: List(String),
-  predicate: fn(String) -> Bool,
-) -> #(List(String), List(String)) {
-  case chars {
-    [] -> #([], [])
-    [first, ..rest] -> {
-      case predicate(first) {
-        True -> #([], chars)
-        False -> {
-          let #(matched, remaining) = take_until(rest, predicate)
-          #([first, ..matched], remaining)
-        }
-      }
-    }
-  }
-}
-
-fn is_ident_char(char: String) -> Bool {
-  case char {
-    "." -> False
-    "#" -> False
-    "[" -> False
-    "]" -> False
-    ":" -> False
-    "=" -> False
-    "^" -> False
-    "$" -> False
-    "*" -> False
-    "\"" -> False
-    " " -> False
-    _ -> True
+    _ -> splitter.split_before(parser.attr_splitter, input)
   }
 }
