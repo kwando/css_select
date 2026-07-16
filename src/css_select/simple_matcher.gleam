@@ -16,7 +16,7 @@ pub type Element =
 ///
 /// Returns `True` if the element's tag name and all attribute
 /// selectors match, `False` otherwise.
-pub fn match(element: Element, selector: Selector) {
+pub fn match(element: Element, selector: Selector) -> Bool {
   let #(t, attrs) = element
 
   case selector {

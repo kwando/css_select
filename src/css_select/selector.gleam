@@ -57,11 +57,10 @@ pub fn to_string(selector: Selector) -> String {
         Class(class) -> "." <> class
         Psuedo(str) -> ":" <> str
         AttributeExists(k) -> "[" <> k <> "]"
-        AttributeEqual("id", v) -> "#" <> v
-        AttributeEqual(k, v) -> "[" <> k <> "=" <> v <> "]"
-        AttributePrefix(k, v) -> "[" <> k <> "=" <> v <> "]"
-        AttributeSuffix(k, v) -> "[" <> k <> "=" <> v <> "]"
-        AttributeIncludes(k, v) -> "[" <> k <> "=" <> v <> "]"
+        AttributeEqual(k, v) -> "[" <> k <> "=\"" <> v <> "\"]"
+        AttributePrefix(k, v) -> "[" <> k <> "^=\"" <> v <> "\"]"
+        AttributeSuffix(k, v) -> "[" <> k <> "$=\"" <> v <> "\"]"
+        AttributeIncludes(k, v) -> "[" <> k <> "*=\"" <> v <> "\"]"
       }
     })
     |> string.join("")

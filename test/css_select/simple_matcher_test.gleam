@@ -94,6 +94,28 @@ pub fn attribute_selector_test() {
     use run <- should_not("match if attribute match does not match prefix")
     run(div([#("data-test", "foobar")]), "[data-test^=\"bar\"]")
   }
+
+  // suffix
+  {
+    use run <- should("match if attribute match suffix")
+    run(div([#("href", "https://example.com")]), "[href$=\".com\"]")
+  }
+
+  {
+    use run <- should_not("match if attribute does not match suffix")
+    run(div([#("href", "https://example.com")]), "[href$=\".org\"]")
+  }
+
+  // includes
+  {
+    use run <- should("match if attribute includes value")
+    run(div([#("class", "foo bar baz")]), "[class*=\"bar\"]")
+  }
+
+  {
+    use run <- should_not("match if attribute does not include value")
+    run(div([#("class", "foo bar baz")]), "[class*=\"qux\"]")
+  }
 }
 
 // --------------------- [ UTILS ] -----------------------
