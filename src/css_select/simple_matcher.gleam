@@ -7,10 +7,15 @@ import gleam/list
 import gleam/result
 import gleam/string
 
+/// An HTML element represented as a tuple of the tag name and
+/// a list of attribute key-value pairs.
 pub type Element =
   #(String, List(#(String, String)))
 
-// Check if a selector matches a given element.
+/// Check whether the given element matches the selector.
+///
+/// Returns `True` if the element's tag name and all attribute
+/// selectors match, `False` otherwise.
 pub fn match(element: Element, selector: Selector) {
   let #(t, attrs) = element
 
