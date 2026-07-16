@@ -1,4 +1,5 @@
-import css_select/internal/parser as splitter_parser
+import css_select
+import css_select/parser as splitter_parser
 import css_select/selector
 import gleam/io
 import gleam/result
@@ -24,15 +25,12 @@ pub fn main() {
   let splitter_parser_instance = splitter_parser.new()
 
   let parse_splitter = fn(input: String) -> ParseResult {
-    splitter_parser.parse_simple_selector_with_parser(
-      splitter_parser_instance,
-      input,
-    )
+    splitter_parser.parse(splitter_parser_instance, input)
     |> result.map_error(fn(_e) { "splitter_error" })
   }
 
   let parse_splitter_new = fn(input: String) -> ParseResult {
-    splitter_parser.parse_simple_selector(input)
+    css_select.parse_simple_selector(input)
     |> result.map_error(fn(_e) { "splitter_new_error" })
   }
 

@@ -1,4 +1,4 @@
-import css_select/internal/parser
+import css_select/parser
 import css_select/simple_matcher
 
 /// Parse a CSS selector string into a `Selector`.
@@ -6,11 +6,14 @@ import css_select/simple_matcher
 /// Returns an error if the input is not a valid simple selector
 /// (no combinators like `>`, `+`, `~`, ` `).
 ///
+/// If you need a parse many expressions it is recommended to use the `parser` module instead
 /// ```gleam
 /// css_select.parse_simple_selector("div#foo.bar")
 /// // -> Ok(ElementSelector(Tag("div"), [Id("foo"), Class("bar")]))
 /// ```
-pub const parse_simple_selector = parser.parse_simple_selector
+pub fn parse_simple_selector(input: String) {
+  parser.parse(parser.new(), input)
+}
 
 /// Check if an HTML element matches a parsed `Selector`.
 ///

@@ -42,27 +42,11 @@ pub type ParseError {
   ParseError(String)
 }
 
-/// Parse a CSS selector string into a `Selector`.
-///
-/// Creates a new parser internally on each call. For repeated
-/// parsing, use `parse_simple_selector_with_parser` with a
-/// pre-created `Parser` for better performance.
-///
-/// ```gleam
-/// parser.parse_simple_selector("div#foo.bar")
-/// // -> Ok(ElementSelector(Tag("div"), [Id("foo"), Class("bar")]))
-/// ```
-pub fn parse_simple_selector(
-  input: String,
-) -> Result(css.Selector, ParseError) {
-  parse_simple_selector_with_parser(new(), input)
-}
-
 /// Parse a CSS selector string using a pre-created `Parser`.
 ///
 /// This avoids the overhead of creating splitters on each call.
 /// Create a `Parser` once with `new()` and reuse it for all parsing.
-pub fn parse_simple_selector_with_parser(
+pub fn parse(
   parser: Parser,
   input: String,
 ) -> Result(css.Selector, ParseError) {
