@@ -1,5 +1,5 @@
 name = "css_select"
-version = "0.2.0"
+version = "0.3.0"
 description = "A CSS selector parser and evaluator"
 licenses = ["MIT"]
 repository = { type = "github", user = "kwando", repo = "css_select" }
